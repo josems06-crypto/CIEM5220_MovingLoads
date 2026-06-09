@@ -1,0 +1,123 @@
+!=====================================================================
+!  HYPERLOOP - Problem 1c : MOVING LOAD  -  V = 835 m/s  (~CRITICAL)
+!  V ~ Vcr -> kinematic line tangent to lowest branch -> resonance,
+!  largest amplification, response at ~160-170 rad/s.
+!  Run:  /INPUT,hyperloop_moving_load_transient_835,txt
+!=====================================================================
+FINISH
+/CLEAR,NOSTART
+/PREP7
+
+! ---------- Parameters (Appendix) ----------
+L_tot = 160
+d     = 16
+le    = 1.0
+E_mod = 2.5e10
+I_zz  = 1.0
+Area  = 1.0
+Dens  = 1330
+ks    = 4.4e8
+cs    = 1.0e4
+F0    = -30000
+
+V     = 835              ! load speed [m/s]   (~CRITICAL)
+dt    = 0.001            ! time step  [s]
+
+ne    = L_tot/le
+nn    = ne+1
+nspan = L_tot/d
+
+! ---------- Element types / material / reals ----------
+ET,1,3
+ET,2,14
+MP,EX,1,E_mod
+MP,DENS,1,Dens
+MP,PRXY,1,0.3
+R,1,Area,I_zz,1,0
+R,2,ks,cs,0
+
+! ---------- Beam nodes & elements ----------
+TYPE,1
+MAT,1
+REAL,1
+*DO,i,1,nn
+  N,i,(i-1)*le,0,0
+*ENDDO
+*DO,i,1,ne
+  EN,i,i,i+1
+*ENDDO
+
+! ---------- Periodic spring supports ----------
+TYPE,2
+REAL,2
+*DO,j,0,nspan
+  bn = j*d/le + 1
+  gn = 1000 + bn
+  N,gn,(bn-1)*le,-0.5,0
+  E,bn,gn
+  D,gn,ALL,0
+*ENDDO
+
+! ---------- Simply-supported ends ----------
+D,1,UX,0
+D,1,UY,0
+D,nn,UX,0
+D,nn,UY,0
+FINISH
+
+! ---------- Transient solution ----------
+/SOLU
+ANTYPE,TRANS
+TRNOPT,FULL
+LUMPM,0
+ALPHAD,0
+BETAD,0.0005
+OUTRES,ALL,ALL
+TM_END = L_tot/V
+
+*DO,TM,dt,TM_END,dt
+  TIME,TM
+  xp = V*TM
+  ff = (xp/le+1)/NINT(xp/le+1)
+  *IF,ff,GE,1,THEN
+    s1 = NINT(xp/le)
+  *ELSE
+    s1 = NINT(xp/le)-1
+  *ENDIF
+  s    = s1+1
+  zeta = (xp-(s-1)*le)/le
+  N1 = 1 - 3*zeta**2 + 2*zeta**3
+  N2 = (zeta - 2*zeta**2 + zeta**3)*le
+  N3 = 3*zeta**2 - 2*zeta**3
+  N4 = (-zeta**2 + zeta**3)*le
+  *DO,i,1,nn
+    *IF,i,EQ,s,THEN
+      Fy = F0*N1
+      Mz = F0*N2
+    *ELSEIF,i,EQ,s+1
+      Fy = F0*N3
+      Mz = F0*N4
+    *ELSE
+      Fy = 0
+      Mz = 0
+    *ENDIF
+    F,i,FY,Fy
+    F,i,MZ,Mz
+  *ENDDO
+  SOLVE
+*ENDDO
+FINISH
+
+! ---------- Extract mid-bay deflection time histories ----------
+/POST26
+NUMVAR,200
+NSOL,2,41 ,U,Y,UY_41
+NSOL,3,73 ,U,Y,UY_73
+NSOL,4,121,U,Y,UY_121
+XVAR,1
+PLVAR,2,3,4
+/PAGE,1000000,,1000000
+/OUTPUT,uy_V835,txt
+PRVAR,2,3,4
+/OUTPUT
+FINISH
