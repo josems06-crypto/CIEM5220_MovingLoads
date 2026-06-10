@@ -1,0 +1,76 @@
+!=====================================================================
+!  HYPERLOOP  -  Problem 1, parts a/b  :  UNDAMPED MODAL ANALYSIS
+!=====================================================================
+FINISH
+/CLEAR,NOSTART
+/PREP7
+
+! ---------- Parameters (from Appendix) ----------
+L_tot = 160          ! total beam length            [m]
+d     = 16           ! support spacing              [m]
+le    = 1.0          ! element length               [m]
+E_mod = 2.5e10       ! Young's modulus (I=1 => EI=2.5e10)  [Pa]
+I_zz  = 1.0          ! second moment of area        [m^4]
+Area  = 1.0          ! cross-section area           [m^2]
+Dens  = 1330         ! rho = D*A = 1330 (A=1)       [kg/m]
+ks    = 4.4e8        ! support stiffness (= 44e7)   [N/m]
+!  --- low-stiffness SANITY CHECK: comment the line above and use:
+!  ks    = 1.0e3     ! near-zero supports -> first mode = plain beam half-sine
+
+ne    = L_tot/le
+nn    = ne+1
+nspan = L_tot/d
+
+! ---------- Element types ----------
+ET,1,3               ! BEAM3   (2-D elastic beam: UX,UY,ROTZ)
+ET,2,14              ! COMBIN14 (spring-damper)
+
+! ---------- Material ----------
+MP,EX,1,E_mod
+MP,DENS,1,Dens
+MP,PRXY,1,0.3
+
+! ---------- Real constants ----------
+R,1,Area,I_zz,1,0    ! beam:   AREA, IZZ, height
+R,2,ks,0,0           ! spring: stiffness, damping = 0  (UNDAMPED)
+
+! ---------- Beam nodes & elements ----------
+TYPE,1
+MAT,1
+REAL,1
+*DO,i,1,nn
+  N,i,(i-1)*le,0,0
+*ENDDO
+*DO,i,1,ne
+  EN,i,i,i+1
+*ENDDO
+
+! ---------- Periodic spring supports every d metres ----------
+TYPE,2
+REAL,2
+*DO,j,0,nspan
+  bn = j*d/le + 1          ! beam node at this support
+  gn = 1000 + bn           ! grounded node below it
+  N,gn,(bn-1)*le,-0.5,0
+  E,bn,gn
+  D,gn,ALL,0
+*ENDDO
+
+! ---------- Simply-supported beam ends ----------
+D,1,UX,0
+D,1,UY,0
+D,nn,UX,0
+D,nn,UY,0
+
+! ---------- Modal analysis ----------
+/SOLU
+ANTYPE,MODAL
+MODOPT,LANB,200,0,400   
+MXPAND,200               
+SOLVE
+FINISH
+
+! ---------- List natural frequencies ----------
+/POST1
+SET,LIST                 
+FINISH
